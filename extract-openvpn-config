@@ -1,0 +1,40 @@
+#!/bin/sh
+
+# Given a .ovpn file, this script will extract the pieces of that file into separate files;
+# this script will output new files with names based on the original file. So, for an original
+# .ovpn file named 'my-config.ovpn', this script will output:
+#
+# 	my-config.conf     # OpenVPN configuration file
+# 	my-config.key.pem  # OpenVPN private key
+# 	my-config.crt.pem  # OpenVPN certificate
+# 	my-config.ca.pem   # OpenVPN CA certificate
+
+# usage: extract-openvpn-config <file.ovpn>
+
+set -eu
+
+die() {
+	echo "$@" >&2
+	exit 1
+}
+
+[ $# -ge 1 ] || die "usage: `basename $0` <file.ovpn>"
+
+for inFile; do
+	[ -f "$inFile" ] || die "file $inFile does not exist"
+
+	inFileBase="${inFile%%.ovpn}"
+	caFile="${inFileBase}.ca.pem"
+	keyFile="${inFileBase}.key.pem"
+	certFile="${inFileBase}.crt.pem"
+	configFile="${inFileBase}.conf"
+
+	for f in "$caFile" "$keyFile" "$certFile" "$configFile"; do
+		[ -f "$f" ] && die "$f already exists; refusing to overwrite"
+	done
+
+	sed -e '1,/^<ca>/d' -e '/^<\/ca>/,$ d' "$inFile" > "$caFile"
+	sed -e '1,/^<cert>/d' -e '/^<\/cert>/,$ d' "$inFile" > "$certFile"
+	sed -e '1,/^<key>/d' -e '/^<\/key>/,$ d' "$inFile" > "$keyFile"
+	sed -n '1,/^<ca>/p' "$inFile" | grep -v '<ca>' > "$configFile"
+done
